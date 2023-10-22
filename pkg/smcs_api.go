@@ -35,8 +35,16 @@ type UserMess struct {
 	CRC           int64  `json:"crc"`
 }
 
-func GetRequestSmcs(ctx context.Context, phone string) (*string, error) {
+type ErrMess struct {
+	Text string `json:"error"`
+	Code int    `json:"error_code"`
+}
 
+const (
+	ErrNoUserHistory string = "Пользователь еще не отправлял запрос для получение кода"
+)
+
+func GetRequestSmcs(ctx context.Context, phone string) (*string, error) {
 	login, err := CheckEnvExist("LOGIN")
 	if err != nil {
 		return nil, err
@@ -57,21 +65,24 @@ func GetRequestSmcs(ctx context.Context, phone string) (*string, error) {
 	data.Set("psw", password)
 	data.Set("phone", phone)
 	data.Set("fmt", "3") // format json
-
 	resp, err := http.Post(apiLink, "application/x-www-form-urlencoded", bytes.NewBufferString(data.Encode()))
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println(string(body))
 	var jsonData []UserMess
-	err = json.Unmarshal(body, &jsonData)
-	if err != nil {
-		return nil, err
+	var errData ErrMess
+	if err := json.Unmarshal(body, &jsonData); err != nil {
+		if jsonErr := json.Unmarshal(body, &errData); jsonErr != nil {
+			return nil, err
+		} else if errData.Code == 3 {
+			return nil, fmt.Errorf(ErrNoUserHistory)
+		}
 	}
 	str := jsonData[0].Message
 	re := regexp.MustCompile(`\d`)
@@ -83,5 +94,7 @@ func GetRequestSmcs(ctx context.Context, phone string) (*string, error) {
 		return nil, fmt.Errorf("invalid count digits: %d ", len(digits))
 	}
 
-	return &str, nil
+	result := fmt.Sprintf("Запрос для номера: [%s] - Код: %s", phone, str)
+
+	return &result, nil
 }
