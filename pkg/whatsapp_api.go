@@ -51,11 +51,11 @@ func (mycli *MyClient) myEventHandler(evt interface{}) {
 			number, status := ExtractPhoneNumber(text)
 			mycli.loggingMessage(&MyMessage{Text: text, EvMes: v, mesType: received})
 			if status {
-				message, err := GetRequestSmcs(context.Background(), number)
+				message, err := GetRequestSmcs(number)
 				if err == fmt.Errorf(ErrNoUserHistory) {
 					text = ErrNoUserHistory
 				} else if err != nil {
-					fmt.Println("worked")
+					fmt.Println("worked error")
 					if err := mycli.sendMessage(&MyMessage{
 						UserID: os.Getenv("MY_ID"),
 						Text:   err.Error(),
@@ -63,15 +63,15 @@ func (mycli *MyClient) myEventHandler(evt interface{}) {
 					}); err != nil {
 						log.Println(err)
 					}
-				}
-
-				if err := mycli.sendMessage(&MyMessage{
-					ChatID: v.Info.Chat.User,
-					UserID: v.Info.Sender.User,
-					Text:   *message,
-					EvMes:  v,
-				}); err != nil {
-					log.Println(err)
+				} else {
+					if err := mycli.sendMessage(&MyMessage{
+						ChatID: v.Info.Chat.User,
+						UserID: v.Info.Sender.User,
+						Text:   *message,
+						EvMes:  v,
+					}); err != nil {
+						log.Println(err)
+					}
 				}
 
 			}
@@ -97,7 +97,7 @@ func (mycli *MyClient) loggingMessage(message *MyMessage) {
 	case received:
 		fmt.Printf("[received message]: %s - [sender]: %s - [chat_id]: %s\n", message.Text, message.EvMes.Info.Sender.User, message.EvMes.Info.Chat.User)
 	case posted:
-		fmt.Printf("[posted message]: %s - [to]: %s\n", message.Text, message.UserID)
+		log.Printf("[posted message]: %s - [to]: %s\n", message.Text, message.UserID)
 	}
 }
 

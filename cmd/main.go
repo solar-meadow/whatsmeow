@@ -11,19 +11,6 @@ import (
 	"github.com/solar-meadow/getCode/pkg"
 )
 
-// type MyClient struct {
-//     WAClient *whatsmeow.Client
-//     eventHandlerID uint32
-// }
-
-// func (mycli *MyClient) register() {
-//     mycli.eventHandlerID = mycli.WAClient.AddEventHandler(mycli.myEventHandler)
-// }
-
-// func (mycli *MyClient) myEventHandler(evt interface{}) {
-//     // Handle event and access mycli.WAClient
-// }
-
 func main() {
 	if err := pkg.InitLogger(); err != nil {
 		log.Fatal(err)

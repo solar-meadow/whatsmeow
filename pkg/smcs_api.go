@@ -2,13 +2,13 @@ package pkg
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"regexp"
+	"time"
 )
 
 type UserMess struct {
@@ -41,10 +41,10 @@ type ErrMess struct {
 }
 
 const (
-	ErrNoUserHistory string = "Пользователь еще не отправлял запрос для получение кода"
+	ErrNoUserHistory string = "пользователь еще не отправлял запрос для получение кода"
 )
 
-func GetRequestSmcs(ctx context.Context, phone string) (*string, error) {
+func GetRequestSmcs(phone string) (*string, error) {
 	login, err := CheckEnvExist("LOGIN")
 	if err != nil {
 		return nil, err
@@ -65,7 +65,16 @@ func GetRequestSmcs(ctx context.Context, phone string) (*string, error) {
 	data.Set("psw", password)
 	data.Set("phone", phone)
 	data.Set("fmt", "3") // format json
-	resp, err := http.Post(apiLink, "application/x-www-form-urlencoded", bytes.NewBufferString(data.Encode()))
+	req, err := http.NewRequest(http.MethodPost, apiLink, bytes.NewBufferString(data.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	defer req.Body.Close()
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	client := http.Client{
+		Timeout: 2 * time.Second,
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +83,7 @@ func GetRequestSmcs(ctx context.Context, phone string) (*string, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(string(body))
+	//fmt.Println(string(body))
 	var jsonData []UserMess
 	var errData ErrMess
 	if err := json.Unmarshal(body, &jsonData); err != nil {
@@ -98,3 +107,7 @@ func GetRequestSmcs(ctx context.Context, phone string) (*string, error) {
 
 	return &result, nil
 }
+
+// func isStaff(phone string) error {
+
+// }
