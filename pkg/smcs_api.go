@@ -40,8 +40,9 @@ type ErrMess struct {
 	Code int    `json:"error_code"`
 }
 
-const (
+var (
 	ErrNoUserHistory string = "пользователь еще не отправлял запрос для получение кода"
+	ErrForbidden     string = "нельзя отправлять запрос на номер сотрудника"
 )
 
 func GetRequestSmcs(phone string) (*string, error) {

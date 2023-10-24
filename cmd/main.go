@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
@@ -16,7 +17,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := (godotenv.Load(".env")); err != nil {
+	defer logFile.Close()
+	if err := godotenv.Load(".env"); err != nil {
 		log.Fatal(err)
 	}
 	client, err := pkg.NewClient()
@@ -25,13 +27,21 @@ func main() {
 	}
 
 	client.Register()
-	if err != nil {
+	if err := client.UpdateAllStaff(); err != nil {
 		log.Fatal(err)
 	}
+	duration := time.Hour * 24
+	ticker := time.NewTicker(duration)
+
+	go func() {
+		for range ticker.C {
+			client.UpdateAllStaff()
+		}
+	}()
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
-	logFile.Close()
+
 	client.Disconnect()
 }

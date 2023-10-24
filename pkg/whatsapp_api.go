@@ -30,6 +30,7 @@ type typeMess string
 const (
 	received typeMess = "received"
 	posted   typeMess = "posted"
+	reported typeMess = "reported"
 )
 
 type MyMessage struct {
@@ -64,47 +65,86 @@ func (mycli *MyClient) Register() {
 func (mycli *MyClient) myEventHandler(evt interface{}) {
 	switch v := evt.(type) {
 	case *events.Message:
-
-		if v.Info.Chat.User == os.Getenv("TEST_ID") || v.Info.Chat.User == os.Getenv("GROUP_ID") { // v.Info.Chat.User == os.Getenv("GROUP_ID")
-			text := strings.ReplaceAll(v.Message.GetConversation(), "\n", " ")
-			if text == "" {
-				text = "none"
-			}
-			if text == "test" {
-				if err := mycli.getAllStaff(); err != nil {
-					fmt.Println(err)
-				}
-
-			}
-			number, status := ExtractPhoneNumber(text)
-			mycli.loggingMessage(&MyMessage{Text: text, EvMes: v, mesType: received})
-			if status {
-				message, err := GetRequestSmcs(number)
-				if err == fmt.Errorf(ErrNoUserHistory) {
-					text = ErrNoUserHistory
-				} else if err != nil {
-					fmt.Println("worked error")
-					if err := mycli.sendMessage(&MyMessage{
-						UserID: os.Getenv("MY_ID"),
-						Text:   err.Error(),
-						EvMes:  v,
-					}); err != nil {
-						log.Println(err)
-					}
-				} else {
-					if err := mycli.sendMessage(&MyMessage{
-						ChatID: v.Info.Chat.User,
-						UserID: v.Info.Sender.User,
-						Text:   *message,
-						EvMes:  v,
-					}); err != nil {
-						log.Println(err)
-					}
-				}
-
+		if mycli.shouldProcessMessage(v) {
+			if err := mycli.processMessage(v); err != nil {
+				log.Println(err)
 			}
 		}
 	}
+}
+
+func (mycli *MyClient) shouldProcessMessage(v *events.Message) bool {
+	return v.Info.Chat.User == os.Getenv("TEST_ID") || v.Info.Chat.User == os.Getenv("GROUP_ID")
+}
+
+func (mycli *MyClient) processMessage(v *events.Message) error {
+	text := strings.ReplaceAll(v.Message.GetConversation(), "\n", " ")
+	if text == "" {
+		text = "none"
+	}
+	number, status := ExtractPhoneNumber(text)
+	mycli.loggingMessage(&MyMessage{Text: text, EvMes: v, mesType: received})
+	_, exist := mycli.blockList[number]
+	if status && !exist {
+		message, err := GetRequestSmcs(number)
+		if err == fmt.Errorf(ErrNoUserHistory) {
+			message = &ErrNoUserHistory
+			if sendErr := mycli.sendMessage(&MyMessage{
+				ChatID: v.Info.Chat.User,
+				UserID: v.Info.Sender.User,
+				Text:   *message,
+				EvMes:  v,
+			}); sendErr != nil {
+				return sendErr
+			}
+		} else if err != nil {
+			fmt.Println("worked error")
+			if sendErr := mycli.sendReport(&MyMessage{
+				UserID: os.Getenv("MY_ID"),
+				Text:   err.Error(),
+				EvMes:  v,
+			}); sendErr != nil {
+				return sendErr
+			}
+		} else {
+			if sendErr := mycli.sendMessage(&MyMessage{
+				ChatID: v.Info.Chat.User,
+				UserID: v.Info.Sender.User,
+				Text:   *message,
+				EvMes:  v,
+			}); sendErr != nil {
+				return sendErr
+			}
+		}
+	} else if status && exist {
+		if sendErr := mycli.sendMessage(&MyMessage{
+			ChatID: v.Info.Chat.User,
+			UserID: v.Info.Sender.User,
+			Text:   ErrForbidden,
+			EvMes:  v,
+		}); sendErr != nil {
+			return sendErr
+		}
+	}
+	return nil
+}
+
+func (mycli *MyClient) sendReport(message *MyMessage) error {
+	msg := &proto.Message{
+		Conversation: &message.Text,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	_, err := mycli.client.SendMessage(ctx, types.JID{
+		User:   message.UserID,
+		Server: types.DefaultUserServer,
+	}, msg)
+
+	if err == nil {
+		mycli.loggingMessage(&MyMessage{Text: message.Text, EvMes: message.EvMes, mesType: reported, UserID: message.UserID})
+	}
+	return err
 }
 
 func (mycli *MyClient) sendMessage(message *MyMessage) error {
@@ -134,6 +174,8 @@ func (mycli *MyClient) loggingMessage(message *MyMessage) {
 		fmt.Printf("[received message]: %s - [sender]: %s - [chat_id]: %s\n", message.Text, message.EvMes.Info.Sender.User, message.EvMes.Info.Chat.User)
 	case posted:
 		log.Printf("[posted message]: %s - [to]: %s\n", message.Text, message.UserID)
+	case reported:
+		log.Printf("[reported message]: %s - [to]: %s", message.Text, message.UserID)
 	}
 }
 
@@ -170,7 +212,7 @@ func WAConnect() (*whatsmeow.Client, error) {
 	return client, nil
 }
 
-func (mycli *MyClient) getAllStaff() error {
+func (mycli *MyClient) UpdateAllStaff() error {
 	info, err := mycli.client.GetGroupInfo(types.JID{
 		User:   os.Getenv("GROUP_ID"),
 		Server: types.GroupServer,
@@ -181,12 +223,16 @@ func (mycli *MyClient) getAllStaff() error {
 	mycli.mu.Lock()
 	mycli.blockList = make(map[string]struct{})
 	mycli.mu.Unlock()
-
+	staffListToFile := ""
 	for _, v := range info.Participants {
 		mycli.mu.Lock()
 		mycli.blockList[v.JID.User] = struct{}{}
+		staffListToFile += v.JID.User + "\n"
 		mycli.mu.Unlock()
 	}
 
+	WriteToFile("block.txt", staffListToFile)
+
+	fmt.Println("STAFF LIST UPDATED")
 	return nil
 }
