@@ -1,3 +1,4 @@
 .env
 wapp.db
 app.log
+block.txt
