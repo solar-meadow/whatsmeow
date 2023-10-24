@@ -107,7 +107,3 @@ func GetRequestSmcs(phone string) (*string, error) {
 
 	return &result, nil
 }
-
-// func isStaff(phone string) error {
-
-// }

@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/mdp/qrterminal"
@@ -18,7 +19,9 @@ import (
 )
 
 type MyClient struct {
-	WAClient       *whatsmeow.Client
+	client         *whatsmeow.Client
+	mu             sync.Mutex
+	blockList      map[string]struct{}
 	eventHandlerID uint32
 }
 
@@ -37,13 +40,31 @@ type MyMessage struct {
 	mesType typeMess
 }
 
+func NewClient() (*MyClient, error) {
+	client, err := WAConnect()
+	if err != nil {
+		return nil, err
+	}
+
+	return &MyClient{
+		client:    client,
+		blockList: make(map[string]struct{}),
+	}, nil
+
+}
+
+func (mycli *MyClient) Disconnect() {
+	mycli.client.Disconnect()
+}
+
 func (mycli *MyClient) Register() {
-	mycli.eventHandlerID = mycli.WAClient.AddEventHandler(mycli.myEventHandler)
+	mycli.eventHandlerID = mycli.client.AddEventHandler(mycli.myEventHandler)
 }
 
 func (mycli *MyClient) myEventHandler(evt interface{}) {
 	switch v := evt.(type) {
 	case *events.Message:
+
 		if v.Info.Chat.User == os.Getenv("TEST_ID") || v.Info.Chat.User == os.Getenv("GROUP_ID") { // v.Info.Chat.User == os.Getenv("GROUP_ID")
 			text := strings.ReplaceAll(v.Message.GetConversation(), "\n", " ")
 			if text == "" {
@@ -97,9 +118,10 @@ func (mycli *MyClient) sendMessage(message *MyMessage) error {
 			},
 		},
 	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
-	_, err := mycli.WAClient.SendMessage(ctx, message.EvMes.Info.Chat, msg)
+	_, err := mycli.client.SendMessage(ctx, message.EvMes.Info.Chat, msg)
 	if err == nil {
 		mycli.loggingMessage(&MyMessage{Text: message.Text, EvMes: message.EvMes, mesType: posted, UserID: message.UserID})
 	}
@@ -115,7 +137,7 @@ func (mycli *MyClient) loggingMessage(message *MyMessage) {
 	}
 }
 
-func WAConnect() (*MyClient, error) {
+func WAConnect() (*whatsmeow.Client, error) {
 	container, err := sqlstore.New("sqlite3", "file:wapp.db?_foreign_keys=on", waLog.Noop)
 	if err != nil {
 		return nil, err
@@ -145,20 +167,26 @@ func WAConnect() (*MyClient, error) {
 			return nil, err
 		}
 	}
-	return &MyClient{
-		WAClient: client,
-	}, nil
+	return client, nil
 }
 
 func (mycli *MyClient) getAllStaff() error {
-	participiants, err := mycli.WAClient.GetLinkedGroupsParticipants(types.JID{
+	info, err := mycli.client.GetGroupInfo(types.JID{
 		User:   os.Getenv("GROUP_ID"),
-		Server: types.DefaultUserServer,
+		Server: types.GroupServer,
 	})
 	if err != nil {
 		return err
 	}
+	mycli.mu.Lock()
+	mycli.blockList = make(map[string]struct{})
+	mycli.mu.Unlock()
 
-	fmt.Println(participiants)
+	for _, v := range info.Participants {
+		mycli.mu.Lock()
+		mycli.blockList[v.JID.User] = struct{}{}
+		mycli.mu.Unlock()
+	}
+
 	return nil
 }

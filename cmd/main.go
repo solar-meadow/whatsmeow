@@ -19,7 +19,7 @@ func main() {
 	if err := (godotenv.Load(".env")); err != nil {
 		log.Fatal(err)
 	}
-	client, err := pkg.WAConnect()
+	client, err := pkg.NewClient()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -33,5 +33,5 @@ func main() {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
 	logFile.Close()
-	client.WAClient.Disconnect()
+	client.Disconnect()
 }
