@@ -12,7 +12,8 @@ import (
 )
 
 func main() {
-	if err := pkg.InitLogger(); err != nil {
+	logFile, err := pkg.InitLogger()
+	if err != nil {
 		log.Fatal(err)
 	}
 	if err := (godotenv.Load(".env")); err != nil {
@@ -22,6 +23,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	client.Register()
 	if err != nil {
 		log.Fatal(err)
@@ -30,6 +32,6 @@ func main() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
-
+	logFile.Close()
 	client.WAClient.Disconnect()
 }

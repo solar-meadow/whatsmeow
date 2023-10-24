@@ -44,7 +44,7 @@ func (mycli *MyClient) Register() {
 func (mycli *MyClient) myEventHandler(evt interface{}) {
 	switch v := evt.(type) {
 	case *events.Message:
-		if v.Info.Chat.User == os.Getenv("TEST_ID") { // v.Info.Chat.User == os.Getenv("GROUP_ID")
+		if v.Info.Chat.User == os.Getenv("TEST_ID") || v.Info.Chat.User == os.Getenv("GROUP_ID") { // v.Info.Chat.User == os.Getenv("GROUP_ID")
 			text := strings.ReplaceAll(v.Message.GetConversation(), "\n", " ")
 			if text == "" {
 				text = "none"
