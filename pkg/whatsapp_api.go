@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/mdp/qrterminal"
 	"go.mau.fi/whatsmeow"
@@ -48,6 +49,12 @@ func (mycli *MyClient) myEventHandler(evt interface{}) {
 			if text == "" {
 				text = "none"
 			}
+			if text == "test" {
+				if err := mycli.getAllStaff(); err != nil {
+					fmt.Println(err)
+				}
+
+			}
 			number, status := ExtractPhoneNumber(text)
 			mycli.loggingMessage(&MyMessage{Text: text, EvMes: v, mesType: received})
 			if status {
@@ -80,12 +87,19 @@ func (mycli *MyClient) myEventHandler(evt interface{}) {
 }
 
 func (mycli *MyClient) sendMessage(message *MyMessage) error {
-	_, err := mycli.WAClient.SendMessage(context.Background(), types.JID{
-		User:   message.UserID,
-		Server: types.DefaultUserServer,
-	}, &proto.Message{
-		Conversation: &message.Text,
-	})
+	var msg = &proto.Message{
+		ExtendedTextMessage: &proto.ExtendedTextMessage{
+			Text: &message.Text,
+			ContextInfo: &proto.ContextInfo{
+				StanzaId:      &message.EvMes.Info.ID,
+				Participant:   &message.EvMes.Info.Sender.User,
+				QuotedMessage: message.EvMes.Message,
+			},
+		},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	_, err := mycli.WAClient.SendMessage(ctx, message.EvMes.Info.Chat, msg)
 	if err == nil {
 		mycli.loggingMessage(&MyMessage{Text: message.Text, EvMes: message.EvMes, mesType: posted, UserID: message.UserID})
 	}
@@ -134,4 +148,17 @@ func WAConnect() (*MyClient, error) {
 	return &MyClient{
 		WAClient: client,
 	}, nil
+}
+
+func (mycli *MyClient) getAllStaff() error {
+	participiants, err := mycli.WAClient.GetLinkedGroupsParticipants(types.JID{
+		User:   os.Getenv("GROUP_ID"),
+		Server: types.DefaultUserServer,
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(participiants)
+	return nil
 }
