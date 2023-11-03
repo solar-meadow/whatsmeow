@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -13,23 +14,28 @@ import (
 )
 
 func main() {
+	fmt.Println("1")
 	logFile, err := pkg.InitLogger()
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	fmt.Println("2")
 	defer logFile.Close()
 	if err := godotenv.Load(".env"); err != nil {
 		log.Fatal(err)
 	}
+	fmt.Println("4")
 	client, err := pkg.NewClient()
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	fmt.Println("3")
 	client.Register()
 	if err := client.UpdateAllStaff(); err != nil {
 		log.Fatal(err)
 	}
+	fmt.Println("5")
 	duration := time.Hour * 24
 	ticker := time.NewTicker(duration)
 

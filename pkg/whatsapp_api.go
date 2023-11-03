@@ -65,6 +65,7 @@ func (mycli *MyClient) Register() {
 func (mycli *MyClient) myEventHandler(evt interface{}) {
 	switch v := evt.(type) {
 	case *events.Message:
+		//		fmt.Println(v)
 		if mycli.shouldProcessMessage(v) {
 			if err := mycli.processMessage(v); err != nil {
 				log.Println(err)
@@ -82,9 +83,13 @@ func (mycli *MyClient) processMessage(v *events.Message) error {
 	if text == "" {
 		text = "none"
 	}
-	number, status := ExtractPhoneNumber(text)
+	number, status := ExtractNumber(text)
 	mycli.loggingMessage(&MyMessage{Text: text, EvMes: v, mesType: received})
 	_, exist := mycli.blockList[number]
+
+	if number == v.Info.Sender.User {
+		exist = false
+	}
 	if status && !exist {
 		message, err := GetRequestSmcs(number)
 		if err == fmt.Errorf(ErrNoUserHistory) {
@@ -100,14 +105,14 @@ func (mycli *MyClient) processMessage(v *events.Message) error {
 		} else if err != nil {
 			fmt.Println("worked error")
 			if sendErr := mycli.sendReport(&MyMessage{
-				UserID: os.Getenv("MY_ID"),
+				UserID: v.Info.Sender.User,
 				Text:   err.Error(),
 				EvMes:  v,
 			}); sendErr != nil {
 				return sendErr
 			}
-		} else {
-			if sendErr := mycli.sendMessage(&MyMessage{
+		} else if err == nil && !exist {
+			if sendErr := mycli.sendReport(&MyMessage{
 				ChatID: v.Info.Chat.User,
 				UserID: v.Info.Sender.User,
 				Text:   *message,
@@ -117,10 +122,10 @@ func (mycli *MyClient) processMessage(v *events.Message) error {
 			}
 		}
 	} else if status && exist {
-		if sendErr := mycli.sendMessage(&MyMessage{
+		if sendErr := mycli.sendReport(&MyMessage{
 			ChatID: v.Info.Chat.User,
 			UserID: v.Info.Sender.User,
-			Text:   ErrForbidden,
+			Text:   ErrForbidden + " " + number,
 			EvMes:  v,
 		}); sendErr != nil {
 			return sendErr
