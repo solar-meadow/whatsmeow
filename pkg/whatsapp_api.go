@@ -65,11 +65,13 @@ func (mycli *MyClient) Register() {
 func (mycli *MyClient) myEventHandler(evt interface{}) {
 	switch v := evt.(type) {
 	case *events.Message:
-		//		fmt.Println(v)
-		if mycli.shouldProcessMessage(v) {
-			if err := mycli.processMessage(v); err != nil {
-				log.Println(err)
+		if os.Getenv("PROD") == "true" {
+			if mycli.shouldProcessMessage(v) {
+				if err := mycli.processMessage(v); err != nil {
+					log.Println(err)
+				}
 			}
+
 		}
 	}
 }
@@ -83,7 +85,7 @@ func (mycli *MyClient) processMessage(v *events.Message) error {
 	if text == "" {
 		text = "none"
 	}
-	number, status := ExtractNumber(text)
+	number, status := ExtractPhoneNumber(text)
 	mycli.loggingMessage(&MyMessage{Text: text, EvMes: v, mesType: received})
 	_, exist := mycli.blockList[number]
 
@@ -106,7 +108,7 @@ func (mycli *MyClient) processMessage(v *events.Message) error {
 			fmt.Println("worked error")
 			if sendErr := mycli.sendReport(&MyMessage{
 				UserID: v.Info.Sender.User,
-				Text:   err.Error(),
+				Text:   fmt.Sprintf("%s %s", number, err.Error()),
 				EvMes:  v,
 			}); sendErr != nil {
 				return sendErr
