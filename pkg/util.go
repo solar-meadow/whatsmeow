@@ -9,7 +9,7 @@ import (
 
 func ExtractPhoneNumber(message string) (string, bool) {
 	message = strings.ToLower(message)
-	if strings.Contains(message, "код") {
+	if strings.Contains(message, "код") || strings.Contains(message, "смс") {
 		regex := `(\+7|8)(\d{10})`
 		re := regexp.MustCompile(regex)
 		matches := re.FindStringSubmatch(message)
