@@ -98,7 +98,7 @@ func (mycli *MyClient) processMessage(v *events.Message) error {
 			message = &ErrNoUserHistory
 			if sendErr := mycli.sendMessage(&MyMessage{
 				ChatID: v.Info.Chat.User,
-				UserID: os.Getenv("GROUP_ID"),
+				UserID: v.Info.Sender.User,
 				Text:   *message,
 				EvMes:  v,
 			}); sendErr != nil {
@@ -107,7 +107,7 @@ func (mycli *MyClient) processMessage(v *events.Message) error {
 		} else if err != nil {
 			fmt.Println("worked error")
 			if sendErr := mycli.sendReport(&MyMessage{
-				UserID: os.Getenv("GROUP_ID"),
+				UserID: v.Info.Sender.User,
 				Text:   fmt.Sprintf("%s %s", number, err.Error()),
 				EvMes:  v,
 			}); sendErr != nil {
@@ -116,7 +116,7 @@ func (mycli *MyClient) processMessage(v *events.Message) error {
 		} else if err == nil && !exist {
 			if sendErr := mycli.sendReport(&MyMessage{
 				ChatID: v.Info.Chat.User,
-				UserID: os.Getenv("GROUP_ID"),
+				UserID: v.Info.Sender.User,
 				Text:   *message,
 				EvMes:  v,
 			}); sendErr != nil {
@@ -126,7 +126,7 @@ func (mycli *MyClient) processMessage(v *events.Message) error {
 	} else if status && exist {
 		if sendErr := mycli.sendReport(&MyMessage{
 			ChatID: v.Info.Chat.User,
-			UserID: os.Getenv("GROUP_ID"),
+			UserID: v.Info.Sender.User,
 			Text:   ErrForbidden + " " + number,
 			EvMes:  v,
 		}); sendErr != nil {
