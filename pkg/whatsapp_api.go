@@ -97,8 +97,8 @@ func (mycli *MyClient) processMessage(v *events.Message) error {
 		if err == fmt.Errorf(ErrNoUserHistory) {
 			message = &ErrNoUserHistory
 			if sendErr := mycli.sendMessage(&MyMessage{
-				ChatID: os.Getenv("GROUP_ID"),
-				UserID: v.Info.Sender.User,
+				ChatID: v.Info.Chat.User,
+				UserID: os.Getenv("GROUP_ID"),
 				Text:   *message,
 				EvMes:  v,
 			}); sendErr != nil {
@@ -115,8 +115,8 @@ func (mycli *MyClient) processMessage(v *events.Message) error {
 			}
 		} else if err == nil && !exist {
 			if sendErr := mycli.sendReport(&MyMessage{
-				ChatID: os.Getenv("GROUP_ID"),
-				UserID: v.Info.Sender.User,
+				ChatID: v.Info.Chat.User,
+				UserID: os.Getenv("GROUP_ID"),
 				Text:   *message,
 				EvMes:  v,
 			}); sendErr != nil {
@@ -125,8 +125,8 @@ func (mycli *MyClient) processMessage(v *events.Message) error {
 		}
 	} else if status && exist {
 		if sendErr := mycli.sendReport(&MyMessage{
-			ChatID: os.Getenv("GROUP_ID"),
-			UserID: v.Info.Sender.User,
+			ChatID: v.Info.Chat.User,
+			UserID: os.Getenv("GROUP_ID"),
 			Text:   ErrForbidden + " " + number,
 			EvMes:  v,
 		}); sendErr != nil {
