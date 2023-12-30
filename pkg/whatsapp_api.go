@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/mdp/qrterminal"
 	"go.mau.fi/whatsmeow"
@@ -89,14 +88,14 @@ func (mycli *MyClient) processMessage(v *events.Message) error {
 	mycli.loggingMessage(&MyMessage{Text: text, EvMes: v, mesType: received})
 	_, exist := mycli.blockList[number]
 
-	if number == v.Info.Sender.User {
+	if number == v.Info.Sender.User { // для того чтобы юзер не мог узнать код других юзеров
 		exist = false
 	}
 	if status && !exist {
 		message, err := GetRequestSmcs(number)
 		if err == fmt.Errorf(ErrNoUserHistory) {
 			message = &ErrNoUserHistory
-			if sendErr := mycli.sendMessage(&MyMessage{
+			if sendErr := mycli.sendGroupMessage(&MyMessage{
 				ChatID: v.Info.Chat.User,
 				UserID: v.Info.Sender.User,
 				Text:   *message,
@@ -106,7 +105,8 @@ func (mycli *MyClient) processMessage(v *events.Message) error {
 			}
 		} else if err != nil {
 			fmt.Println("worked error")
-			if sendErr := mycli.sendReport(&MyMessage{
+			if sendErr := mycli.sendGroupMessage(&MyMessage{
+				ChatID: v.Info.Chat.User,
 				UserID: v.Info.Sender.User,
 				Text:   fmt.Sprintf("%s %s", number, err.Error()),
 				EvMes:  v,
@@ -114,8 +114,8 @@ func (mycli *MyClient) processMessage(v *events.Message) error {
 				return sendErr
 			}
 		} else if err == nil && !exist {
-			if sendErr := mycli.sendReport(&MyMessage{
-				ChatID: v.Info.Chat.User,
+			if sendErr := mycli.sendGroupMessage(&MyMessage{
+				ChatID: v.Info.Chat.User,// old v.Info.Chat.User 
 				UserID: v.Info.Sender.User,
 				Text:   *message,
 				EvMes:  v,
@@ -124,7 +124,7 @@ func (mycli *MyClient) processMessage(v *events.Message) error {
 			}
 		}
 	} else if status && exist {
-		if sendErr := mycli.sendReport(&MyMessage{
+		if sendErr := mycli.sendGroupMessage(&MyMessage{
 			ChatID: v.Info.Chat.User,
 			UserID: v.Info.Sender.User,
 			Text:   ErrForbidden + " " + number,
@@ -136,44 +136,54 @@ func (mycli *MyClient) processMessage(v *events.Message) error {
 	return nil
 }
 
-func (mycli *MyClient) sendReport(message *MyMessage) error {
-	msg := &proto.Message{
+// func (mycli *MyClient) sendReport(message *MyMessage) error {
+// 	msg := &proto.Message{
+// 		Conversation: &message.Text,
+// 	}
+// 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+// 	defer cancel()
+
+// 	_, err := mycli.client.SendMessage(ctx, types.JID{
+// 		User:   message.UserID,
+// 		Server: types.DefaultUserServer,
+// 	}, msg)
+
+// 	if err == nil {
+// 		mycli.loggingMessage(&MyMessage{Text: message.Text, EvMes: message.EvMes, mesType: reported, UserID: message.UserID})
+// 	}
+// 	return err
+// }
+
+func (mycli *MyClient) sendGroupMessage (message *MyMessage) error{
+
+	_, err := mycli.client.SendMessage(context.Background(), types.JID{
+		User: message.ChatID,
+		Server: types.GroupServer,
+	}, &proto.Message{
 		Conversation: &message.Text,
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
-
-	_, err := mycli.client.SendMessage(ctx, types.JID{
-		User:   message.UserID,
-		Server: types.DefaultUserServer,
-	}, msg)
-
-	if err == nil {
-		mycli.loggingMessage(&MyMessage{Text: message.Text, EvMes: message.EvMes, mesType: reported, UserID: message.UserID})
-	}
+	}, )
 	return err
 }
+// func (mycli *MyClient) sendMessage(message *MyMessage) error {
+// 	var msg = &proto.Message{
+// 		ExtendedTextMessage: &proto.ExtendedTextMessage{
+// 			Text: &message.Text,
+// 			ContextInfo: &proto.ContextInfo{
+// 				StanzaId:      &message.EvMes.Info.ID,
+// 				Participant:   &message.EvMes.Info.Sender.User,
+// 				QuotedMessage: message.EvMes.Message,
+// 			},
+// 		},
+// 	}
 
-func (mycli *MyClient) sendMessage(message *MyMessage) error {
-	var msg = &proto.Message{
-		ExtendedTextMessage: &proto.ExtendedTextMessage{
-			Text: &message.Text,
-			ContextInfo: &proto.ContextInfo{
-				StanzaId:      &message.EvMes.Info.ID,
-				Participant:   &message.EvMes.Info.Sender.User,
-				QuotedMessage: message.EvMes.Message,
-			},
-		},
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
-	_, err := mycli.client.SendMessage(ctx, message.EvMes.Info.Chat, msg)
-	if err == nil {
-		mycli.loggingMessage(&MyMessage{Text: message.Text, EvMes: message.EvMes, mesType: posted, UserID: message.UserID})
-	}
-	return err
-}
+// 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+// 	defer cancel()
+// 	_, err := mycli.client.SendMessage(ctx, message.EvMes.Info.Chat, msg)
+// 	if err == nil {
+// 		mycli.loggingMessage(&MyMessage{Text: message.Text, EvMes: message.EvMes, mesType: posted, UserID: message.UserID})
+// 	}
+// 	return err
+// }
 
 func (mycli *MyClient) loggingMessage(message *MyMessage) {
 	switch message.mesType {
